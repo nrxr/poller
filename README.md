@@ -46,3 +46,7 @@ func main() {
   p.Start(context.Background())
 }
 ```
+
+## License
+
+This software is release under the MIT license.

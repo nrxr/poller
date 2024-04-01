@@ -1,10 +1,19 @@
-// Package poller provides logic for an abstract and re-usable poller.
+// Package poller provides logic for a polling implementation.
 //
-// This package serves as a simple template where you can throw a getter and a
-// pusher (or multiple) and get an easily modular and configurable poller
-// running in no-time, worrying only about your logic and not caring about a
-// pattern you've been using over and over and don't want to write anymore in
-// your life. Ever.
+// Polling is actively retrieving data in a set interval. The operation is
+// divided in two sets: get the data and optionally push the data.
+//
+// For retrieval, a [Getter] is passed and it'll be called by a ticker at a set
+// interval. The [Getter] can return information or an error. In case of error,
+// the [OnError] is called.
+//
+// For transformation, one or multiple [Pusher] can be passed. If at least one
+// has been passed, they are executed in sequential order, as they've been
+// passed. The information returned by the [Getter] is passed as input and if
+// any error is returned, [OnError] is called.
+//
+// Each [Pusher] is independent, which means if one fails, the others are still
+// going to be executed and won't be interrupted.
 //
 //	                              ┌──────────────┐
 //	                              │ p.onError()  │
@@ -19,6 +28,8 @@
 //	        │                                            │
 //	        │                                            │
 //	        └────────────────────────────────────────────┘
+//
+// See more on polling: https://en.wikipedia.org/wiki/Polling_(computer_science)
 package poller
 
 import (
@@ -27,8 +38,9 @@ import (
 	"time"
 )
 
-// Poller represents a polling instance. Is initialized via New and
-// configurable with Option(s).
+// Poller represents an instance that's executed after a condition has been
+// met, be it a specific conditional or a timeout. It's initialized with [New]
+// and configurable passing one or multiple [Option].
 type Poller struct {
 	interval int64
 	getter   Getter
@@ -37,8 +49,8 @@ type Poller struct {
 }
 
 // Getter returns a value and an error. Getter is used as a template for a
-// getter function passed to a Poller initialization. The Poller instance will
-// use Getter to update the status of the Poller.
+// getter function passed to a [Poller] initialization. The [Poller] instance
+// will use Getter to update the status of itself.
 type Getter func(context.Context) (interface{}, error)
 
 // Pusher returns an error. Pusher is used as a template for functions to be
@@ -93,10 +105,10 @@ func (p Poller) Start(ctx context.Context) {
 	}
 }
 
-// Poller calls p's getter and pushers, if the getter succeeds. Each pusher is
-// called independently and if one pusher errors out it wont cancel the other
-// one. All the pushers are called. On error, p.onError will be called for
-// both, the getter and the pushers.
+// Poll calls the [Poller] getter and pushers, if the getter succeeds. Each
+// pusher is called independently and if one pusher errors out it wont cancel
+// the other one. All the pushers are called. On error, p.onError will be
+// called for both, the getter and the pushers.
 func (p Poller) Poll(ctx context.Context) {
 	gr, err := p.getter(ctx)
 	if err != nil {
